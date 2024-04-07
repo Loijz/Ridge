@@ -1,0 +1,91 @@
+---
+title: "Ridge Problem"
+author: "Jarkko Schaad"
+date: "2024-04-07"
+output: html_document
+---
+
+Downloading dataset Student-performance and splitting into test_set & train_set
+```{r}
+
+library(tidyverse)
+library(ggplot2)
+download_and_unzip <- function(download_url, dest_dir, zip_file_name) {
+  # Ensure the destination directory exists
+  if (!dir.exists(dest_dir)) {
+    dir.create(dest_dir)
+  }
+  
+  # Define the zip file path
+  zip_file_path <- file.path(dest_dir, zip_file_name)
+  
+  # Download the zip file
+  download.file(url = download_url, destfile = zip_file_path, method = "auto")
+  
+  # Unzip the file
+  unzip(zipfile = zip_file_path, exdir = dest_dir)
+}
+
+split_data <- function(data, split_ratio = 0.8) {
+  # Splitting the data into train and test sets
+  set.seed(123) # For reproducibility
+  training_sample <- sample(nrow(data), size = floor(nrow(data) * split_ratio))
+  train_set <- data[training_sample, ]
+  test_set <- data[-training_sample, ]
+  
+  # Return a list containing the train and test datasets
+  return(list(train_set = train_set, test_set = test_set))
+}
+
+# Given dataset details
+download_url <- "https://archive.ics.uci.edu/ml/machine-learning-databases/00320/student.zip"
+dest_dir <- "student-performance"
+zip_file_name <- "student-performance.zip"
+data_file <- "student-mat.csv"
+
+# Download and unzip the dataset
+download_and_unzip(download_url, dest_dir, zip_file_name)
+
+# Define the path to the dataset CSV file
+data_file_path <- file.path(dest_dir, data_file)
+
+# Read the dataset
+data <- read.csv(data_file_path, sep = ";")
+glimpse(data)
+# Now data is ready to be passed to the split_data function
+
+datasets <- split_data(data)
+train_set <- datasets$train_set
+test_set <- datasets$test_set
+
+```
+
+
+
+Creating Ridge
+```{r}
+library(glmnet)
+ridge <- glmnet(as.matrix(train_set[,c(1:25)]), train_set$G3, alpha = 0)
+
+plot(ridge, xvar = "lambda", label = TRUE)
+
+```
+Ridge Plot looks good. Alle coefficients reach 0 at the same point. 
+But when I proceed to check the Model with the optimal Lambda, a lot of coefficients are deleted from the Ridge-Model
+
+```{r}
+ridge.cv <- cv.glmnet(as.matrix(train_set[,c(1:25)]), train_set$G3, type.measure = "mse", nfolds = 5, alpha = 0)
+
+plot(ridge.cv)
+
+print(paste0("Optimal lambda that minimizes cross-validated MSE: ", ridge.cv$lambda.min))
+print(paste0("Optimal lambda using one-standard-error-rule: ", ridge.cv$lambda.1se))
+
+plot(ridge.cv$lambda, ridge.cv$cvm, type = "n", log = "x", xlab = "Log(ridge)", ylab = "Mean Squared Error")
+points(ridge.cv$lambda, ridge.cv$cvm, pch = 20)  # Add the points
+
+# Print Ridge coefficients
+print(coef(ridge.cv, s = "lambda.min"))
+```
+
+
